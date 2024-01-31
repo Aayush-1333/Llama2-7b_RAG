@@ -1,0 +1,5 @@
+Data_*
+.env
+chroma_db
+vector_store_data
+__pycache__/rag_model.cpython-310.pyc
