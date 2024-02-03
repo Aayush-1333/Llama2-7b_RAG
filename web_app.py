@@ -117,7 +117,7 @@ if __name__ == "__main__":
     # Sidebar to upload files
     with st.sidebar:
         uploaded_files = st.file_uploader(
-            ":green[##Upload files]", type='pdf', accept_multiple_files=True)
+            ":green[Upload files]", type='pdf', accept_multiple_files=True)
 
         col1, col2 = st.columns(2, gap="small")
         submit_files = col1.button('Submit', use_container_width=True)

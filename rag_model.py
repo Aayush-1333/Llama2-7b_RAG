@@ -9,7 +9,6 @@
         - RAM: 32GB
         - i7 processor 13th gen
 """
-import llama_index
 import torch
 from transformers import BitsAndBytesConfig
 from langchain.embeddings.huggingface import HuggingFaceInstructEmbeddings
