@@ -9,6 +9,7 @@
         - RAM: 32GB
         - i7 processor 13th gen
 """
+import llama_index
 import torch
 from transformers import BitsAndBytesConfig
 from langchain.embeddings.huggingface import HuggingFaceInstructEmbeddings
@@ -20,17 +21,24 @@ from llama_index.retrievers import VectorIndexRetriever
 from llama_index.query_engine import RetrieverQueryEngine
 from llama_index.prompts import PromptTemplate
 from llama_index.storage.storage_context import StorageContext
-from llama_index.text_splitter import SentenceSplitter
-from llama_index.ingestion import IngestionPipeline
-from llama_index.vector_stores.types import ExactMatchFilter, MetadataFilters
+from llama_index.vector_stores import ChromaVectorStore
 from llama_index.postprocessor import SimilarityPostprocessor
 
+from chromadb import PersistentClient
+from chromadb.utils import embedding_functions
+
 from dotenv import load_dotenv
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 
 
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
+
+LLM = "meta-llama/Llama-2-7b-chat-hf"
+EMBED_MODEL = "hkunlp/instructor-large"
+DEVICE_MAP = "auto"
+DEVICE = "cuda"
 
 
 class Llama2_7B_Chat:
@@ -39,20 +47,26 @@ class Llama2_7B_Chat:
     def __init__(self) -> None:
         """Constrcutor of the class Llama2_7B_Chat"""
 
-        # print("starting constructor...")
+        print("==================== starting constructor... ======================")
+
+        # Start chroma client
+        self.__chroma_client = PersistentClient('./chroma_db')
 
         # for model bit quantization for more effiency in computation by the LLM
         self.__quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True
+            bnb_4bit_use_double_quant=True,
+            llm_int8_enable_fp32_cpu_offload=True
         )
+        
+        tokenizer = AutoTokenizer.from_pretrained(LLM)
 
         # HuggingFaceLLM object - uses pretrained models from HuggingFace (Llama2-7B-chat model)
         self.__llm = HuggingFaceLLM(
-            model_name="meta-llama/Llama-2-7b-chat-hf",
-            tokenizer_name="meta-llama/Llama-2-7b-chat-hf",
+            model_name=LLM,
+            tokenizer=tokenizer,
             is_chat_model=True,
             max_new_tokens=512,
             query_wrapper_prompt=PromptTemplate(
@@ -65,18 +79,17 @@ class Llama2_7B_Chat:
             tokenizer_kwargs={
                 "token": HF_TOKEN
             },
-            device_map="cuda"
+            device_map=DEVICE_MAP
         )
 
         # embedding model - pretrained embedding model (it is wrapper around sentence_transformers)
         self.__embed_model = HuggingFaceInstructEmbeddings(
-            model_name="hkunlp/instructor-large",
+            model_name=EMBED_MODEL,
             model_kwargs={
-                "device": "cuda"
+                "device": DEVICE
             }
         )
 
-        # Vector Index object
         self.__index = None
 
         # Service context
@@ -85,58 +98,41 @@ class Llama2_7B_Chat:
 
         set_global_service_context(self.__service_context)
 
-    def create_index(self, data_dir: str, user_id: str) -> None:
+    def create_index(self, data_dir: str) -> None:
         """Creates the Vector Index for querying with LLM"""
 
-        # print("creating index....")
+        print("============= creating index.... ================")
 
-        pipeline = IngestionPipeline(
-            transformations=[
-                SentenceSplitter(chunk_size=512, chunk_overlap=20)
-            ]
+        # embedding function for chromadb
+        embedding_func = embedding_functions.HuggingFaceEmbeddingFunction(
+            api_key=HF_TOKEN,
+            model_name=EMBED_MODEL
         )
 
-        # read the data from the folder
+        # Load the documents from data_dir
         docs = SimpleDirectoryReader(data_dir).load_data()
 
-        # Checking for existence of persistent vector_store
-        if os.path.exists('vector_store_data'):
-            storage_context = StorageContext.from_defaults(
-                persist_dir='vector_store_data')
-            
-            self.__index = load_index_from_storage(
-                storage_context=storage_context)
-            
-            os.system("rm -rf vector_store_data")
-        else:
-            # creating index
-            self.__index = VectorStoreIndex.from_documents(documents=[])
+        # Creating collection in chroma database
+        chroma_collection = self.__chroma_client.get_or_create_collection("data_embeddings",
+                                                                          embedding_function=embedding_func)
 
-        print(type(docs))
-        for doc in docs:
-            doc.metadata["user"] = f"user_{user_id}"
-            # print(doc)
+        # Creating Chroma Vector Store
+        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 
-        nodes = pipeline.run(documents=docs)
-        self.__index.insert_nodes(nodes=nodes)
+        # Create storage context using chroma vector store
+        storage_context = StorageContext.from_defaults(
+            vector_store=vector_store)
 
-        # storing index to disk
-        self.__index.storage_context.persist(persist_dir='vector_store_data')
+        self.__index = VectorStoreIndex.from_documents(docs, storage_context=storage_context)
 
-    def start_query_engine(self, user_id: str) -> None:
+    def start_query_engine(self):
         """Initialize the query engine"""
 
-        # print("starting query engine...")
+        print("=========== starting query engine... ===============")
 
         # configure retriever
         retriever = VectorIndexRetriever(
             index=self.__index,
-            filters=MetadataFilters(
-                filters=ExactMatchFilter(
-                    key="user",
-                    value=f"user_{user_id}"
-                )
-            ),
             similarity_top_k=6
         )
 

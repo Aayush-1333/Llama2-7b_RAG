@@ -10,17 +10,6 @@ import os
 from rag_model import Llama2_7B_Chat, reset_model
 
 
-# @st.cache_data
-# def reset_state() -> None:
-#     """resets the state of the model"""
-
-#     reset_model()  # deletes all the files from the disk
-#     st.cache_data.clear()  # clear streamlit data cache memory
-#     st.session_state.messages.clear()  # clear chat history
-#     # st.session_state.files.clear()  # clear files cache data
-#     st.session_state.files_uploaded = False  # set files uploaded to False
-
-
 @st.cache_resource
 def load_llm():
     return Llama2_7B_Chat()
@@ -34,12 +23,13 @@ def save_chat_to_history(chat_data: dict) -> None:
 
 def get_llm_reply(model: Llama2_7B_Chat, mode: str = "default", user_prompt: str = None) -> None:
     """get response from the LLM"""
-    
+
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
 
         if mode == "reply":
-            llm_response, _ = model.ask_llm(user_prompt, st.session_state.query_engine)   # reply and source nodes
+            llm_response, _ = model.ask_llm(
+                user_prompt, st.session_state.query_engine)   # reply and source nodes
         elif mode == "greet":
             llm_response = random.choice(
                 [
@@ -52,10 +42,11 @@ def get_llm_reply(model: Llama2_7B_Chat, mode: str = "default", user_prompt: str
             llm_response = "No files uploaded! Please upload a file :)"
 
     full_response = ""
-    # print("Streamlit got --->", llm_response)
-    
+
     try:
-        for chunk in str(llm_response).split():
+        llm_response = str(llm_response)
+        print("Streamlit got --->", llm_response)
+        for chunk in llm_response.split():
             full_response += chunk + " "
             time.sleep(0.05)
             # Add a blinking cursor to simulate typing
@@ -76,18 +67,21 @@ def show_history() -> None:
             st.markdown(message["content"])
 
 
-@st.cache_data
+def clear_chat() -> None:
+    st.session_state.messages.clear()
+
+
 def upload_data(_model: Llama2_7B_Chat) -> None:
     """Upload the data given by the user to a directory"""
-    
-    st.session_state.files_uploaded = False
+
+    st.session_state.files_uploaded = True
 
     upload_time = str(int(time.time()))
     folder_name = "Data_" + upload_time
+    bar = st.progress(0, text="Uploading files...")
 
     if not os.path.exists(folder_name):
         os.system(f"mkdir {folder_name}")
-        status = st.text("Please wait your files are beig uploaded...")
 
         # Write the file to Data directory
         for file in uploaded_files:
@@ -95,35 +89,47 @@ def upload_data(_model: Llama2_7B_Chat) -> None:
                 bytes_file.write(file.getbuffer())
 
         # initialize model, create vector_index and start query_engine
-        user_id = st.session_state.session_user
-        _model.create_index(folder_name, user_id)
-        st.session_state.query_engine = _model.start_query_engine(user_id)
+        bar.progress(25, text="Creating indices...")
+        _model.create_index(folder_name)
 
-        status.text("Your files have uploaded! You can ask now :)")
+        bar.progress(50, text="Staring engine...")
+        st.session_state.query_engine = _model.start_query_engine()
+
+        bar.progress(75, text="Staring engine...")
         st.session_state.messages.clear()
+
+        bar.progress(100, "Files uploaded!!")
+        time.sleep(0.03)
+        bar.empty()
 
 
 # Main code
 if __name__ == "__main__":
     # Site title
-    st.title("Llama2-TalkBot")
-    
-    st.write("Initializing Llama2-7B model....")
+    st.title(":blue[Llama2-TalkBot]")
+
+    status = st.text("Initializing Llama2-7B model....")
     model = load_llm()
-    st.write("Done!!")
-    
+    status.text("Done!!")
+    time.sleep(0.05)
+    status.empty()
+
     # Sidebar to upload files
     with st.sidebar:
         uploaded_files = st.file_uploader(
-            "Upload files", type='pdf', accept_multiple_files=True)
-        if uploaded_files:
-            upload_data(model)        
+            ":green[##Upload files]", type='pdf', accept_multiple_files=True)
+
+        col1, col2 = st.columns(2, gap="small")
+        submit_files = col1.button('Submit', use_container_width=True)
+        clear_chat_btn = col2.button(
+            'Clear Chat', on_click=clear_chat, use_container_width=True)
+
+        if uploaded_files and submit_files:
+            upload_data(model)
 
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
-        id = time.time()
-        st.session_state.session_user = f"{id}"
         get_llm_reply(model, mode="greet")
 
     # Accept user input
@@ -132,7 +138,7 @@ if __name__ == "__main__":
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(prompt)
-            
+
         # Add user message to chat history
         save_chat_to_history({"role": "user", "content": prompt})
 

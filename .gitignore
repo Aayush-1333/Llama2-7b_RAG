@@ -1,5 +1,11 @@
-Data_*
+Data*
 .env
-chroma_db
+chroma*
 vector_store_data
-__pycache__/rag_model.cpython-310.pyc
+__pycache__
+Llama_LLM.ipynb
+node_modules
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
