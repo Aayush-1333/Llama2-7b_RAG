@@ -160,8 +160,6 @@ class Llama2_7B_Chat:
 
         response = query_engine.query(user_query)
 
-        # print("Model says --->", response)
-
         return response, response.source_nodes
 
 

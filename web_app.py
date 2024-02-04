@@ -44,14 +44,18 @@ def get_llm_reply(model: Llama2_7B_Chat, mode: str = "default", user_prompt: str
     full_response = ""
 
     try:
-        llm_response = str(llm_response)
-        print("Streamlit got --->", llm_response)
-        for chunk in llm_response.split():
-            full_response += chunk + " "
-            time.sleep(0.05)
-            # Add a blinking cursor to simulate typing
-            message_placeholder.markdown(full_response + "▌")
+        llm_response = str(llm_response).split('\n')
+
+        for response in llm_response:
+            for chunk in response.split():
+                full_response += chunk + " "
+                time.sleep(0.05)
+                # Add a blinking cursor to simulate typing
+                message_placeholder.markdown(full_response + "▌")
+            full_response += "  \n"
+                
         message_placeholder.markdown(full_response)
+
     except AttributeError as e:
         message_placeholder.markdown("No answer! Error!")
 
