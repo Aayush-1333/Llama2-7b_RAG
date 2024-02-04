@@ -15,7 +15,7 @@ from langchain.embeddings.huggingface import HuggingFaceInstructEmbeddings
 
 from llama_index.llms import HuggingFaceLLM
 from llama_index import ServiceContext, SimpleDirectoryReader, \
-    VectorStoreIndex, get_response_synthesizer, load_index_from_storage, set_global_service_context
+    VectorStoreIndex, get_response_synthesizer, set_global_service_context
 from llama_index.retrievers import VectorIndexRetriever
 from llama_index.query_engine import RetrieverQueryEngine
 from llama_index.prompts import PromptTemplate
@@ -27,7 +27,7 @@ from chromadb import PersistentClient
 from chromadb.utils import embedding_functions
 
 from dotenv import load_dotenv
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 import os
 
 
