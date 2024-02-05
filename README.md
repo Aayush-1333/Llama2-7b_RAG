@@ -1,4 +1,4 @@
-# Llama2-7B TalkBot (Version 1.0) - Single Tenant Mode
+# Llama2-7B TalkBot (Version 1.0) - Under development
 
 This projects aims to create a RAG model that will fetch the data from user's private data on uploading the documents and get responses based on their personal queries.
 
